@@ -35,14 +35,6 @@ def careful_log(x):
         return np.log(x)
         
 def final_distribution():
-    # returns a Distribution for the final hidden state
-    final = robot.Distribution()
-    for x in range(robot.GRID_WIDTH):
-        for y in range(robot.GRID_HEIGHT):
-            final[(x, y, 'stay')] = 1
-    return final
-    
-def final_distribution2():
     final = robot.Distribution()
     for state in robot.get_all_hidden_states():
         final[state] = 1
@@ -50,7 +42,6 @@ def final_distribution2():
         
         
 def pretransition(state):
-    x,y,action = state
     prev_states = robot.Distribution()
     
     for s in all_possible_hidden_states:
@@ -82,9 +73,13 @@ def compute_phi(observations):
         phi[i] = robot.Distribution()
         observation = observations[i]
         for state in all_possible_hidden_states:
+            if observation == None:
+                phi[i][state] = 1
+                continue
             possible_locations = observation_model(state)
             if observation in possible_locations:
                 phi[i][state] = possible_locations[observation]
+        phi[i].renormalize()
                 
     return phi
         
@@ -189,7 +184,8 @@ def forward_backward(observations):
         marginals[i] = robot.Distribution()
         for state in phis[i]:
             marginals[i][state] = phis[i][state]*forward_messages[i][state]*backward_messages[i][state]
-        marginals[i].renormalize()
+        if sum(marginals[i].values()) != 0:
+            marginals[i].renormalize()
 
     return marginals
 
