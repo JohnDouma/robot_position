@@ -33,11 +33,137 @@ def careful_log(x):
         return -np.inf
     else:
         return np.log(x)
+        
+def final_distribution():
+    # returns a Distribution for the final hidden state
+    final = robot.Distribution()
+    for x in range(robot.GRID_WIDTH):
+        for y in range(robot.GRID_HEIGHT):
+            final[(x, y, 'stay')] = 1
+    return final
+        
+        
+def transition_from_model(state):
+    # given a hidden state, return the Distribution for the previous hidden state
+    x, y, action = state
+    prev_states = robot.Distribution()
+
+    if action == 'right':
+        prev_states[(x-1, y, 'right')] = .9
+        prev_states[(x-1, y, 'stay')] = .1
+    elif action == 'left':
+        prev_states[(x+1, y, 'left')] = .9
+        prev_states[(x+1, y, 'stay')] = .1
+    elif action == 'up':
+        prev_states[(x, y+1, 'up')] = .9
+        prev_states[(x, y+1, 'stay')] = .1
+    elif action == 'down':
+        prev_states[(x, y-1, 'down')] = .9
+        prev_states[(x, y-1, 'stay')] = .1
+    else: # action = 'stay'
+        prev_states[(x, y, 'stay')] = .2
+        prev_states[(x, y, 'right')] = .2
+        prev_states[(x, y, 'left')] = .2
+        prev_states[(x, y, 'up')] = .2
+        prev_states[(x, y, 'down')] = .2
+        
+
+    prev_states.renormalize()
+    return prev_states
+
+def compute_phi(observations):
+    """
+    Compute phi = P(observations[i]|state) for each hidden state
+    
+    Inputs:
+        observations - list of locations given as (x, y) tuples
+        
+    Outputs:
+        robot.Distribution for each of the observations
+    """
+    
+    num_observations = len(observations)
+    phi = [None] * num_observations
+    
+    for i in range(num_observations):
+        phi[i] = robot.Distribution()
+        observation = observations[i]
+        for state in all_possible_hidden_states:
+            possible_locations = observation_model(state)
+            if observation in possible_locations.keys():
+                phi[i][state] = possible_locations[observation]
+                
+    return phi
+        
+        
+def compute_forwards(phis):
+    """
+    Compute forward message alpha_i_to_j for for all timesteps.
+    Inputs:
+        phis - list of conditional probability distributions, 
+               one for each time step.
+               phi[i] = P(yi|x) where yi is the ith observation and x is any
+               possible state
+    Output:
+        forwards - list of forward distributions.
+        forwards[i] is alpha_(i-1)_to_i for i > 0
+        forwards[0] is initial distribution for the system
+    """
+    
+    num_phis = len(phis)
+    forwards = [None] * num_phis
+    forwards[0] = prior_distribution
+    for i in range(1, num_phis):
+        forwards[i] = robot.Distribution()
+        for state in phis[i-1]:
+            prob = forwards[i-1][state] * phis[i-1][state]
+            if prob != 0:
+                next_states = transition_model(state)
+                for next_state in next_states:
+                    if next_state in forwards[i]:
+                        forwards[i][next_state] += (prob*next_states[next_state])
+                    else:
+                        forwards[i][next_state] = (prob*next_states[next_state])
+        forwards[i].renormalize()
+    
+    return forwards
 
 
 # -----------------------------------------------------------------------------
 # Functions for you to implement
 #
+
+def compute_backwards(phis):
+    """
+    Compute backward message beta_i_to_j for for all timesteps.
+    Inputs:
+        phis - list of conditional probability distributions, 
+               one for each time step.
+               phi[i] = P(yi|x) where yi is the ith observation and x is any
+               possible state
+    Output:
+        backwards - list of backward distributions.
+        backwards[i] is beta_(i+1)_to_i for i < <last-element>
+        backwards[<last-element>] is final distribution for the system
+    """
+    
+    num_phis = len(phis)
+    backwards = [None] * num_phis
+    backwards[num_phis - 1] = final_distribution()
+    for i in range (num_phis-2, -1, -1):
+        backwards[i] = robot.Distribution()
+        for state in phis[i+1]:
+            prob = backwards[i+1][state]*phis[i+1][state]
+            if prob != 0:
+                prev_states = transition_from_model(state)
+                for prev_state in prev_states:
+                    if prev_state in backwards[i]:
+                        backwards[i][prev_state] += (prob * prev_states[prev_state])
+                    else:
+                        backwards[i][prev_state] = (prob * prev_states[prev_state])
+        backwards[i].renormalize()
+        
+    return backwards
 
 def forward_backward(observations):
     """
@@ -59,16 +185,18 @@ def forward_backward(observations):
     # YOUR CODE GOES HERE
     #
 
-    num_time_steps = len(observations)
-    forward_messages = [None] * num_time_steps
-    forward_messages[0] = [prior_distribution]
-    # TODO: Compute the forward messages
+    phis = compute_phi(observations)
+    forward_messages = compute_forwards(phis)
 
-    backward_messages = [None] * num_time_steps
-    # TODO: Compute the backward messages
+    backward_messages = compute_backwards(phis)
 
-    marginals = [None] * num_time_steps # remove this
-    # TODO: Compute the marginals 
+    num_observations = len(observations)
+    marginals = [None] * num_observations
+    for i in range(num_observations):
+        marginals[i] = robot.Distribution()
+        for state in phis[i]:
+            marginals[i][state] = phis[i][state]*forward_messages[i][state]*backward_messages[i][state]
+        marginals[i].renormalize()
 
     return marginals
 
