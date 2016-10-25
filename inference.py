@@ -49,33 +49,21 @@ def final_distribution2():
     return final
         
         
-def transition_from_model(state):
-    # given a hidden state, return the Distribution for the previous hidden state
-    x, y, action = state
+def pretransition(state):
+    x,y,action = state
     prev_states = robot.Distribution()
-
-    if action == 'right':
-        prev_states[(x-1, y, 'right')] = 9/11
-        prev_states[(x-1, y, 'stay')] = 2/11
-    elif action == 'left':
-        prev_states[(x+1, y, 'left')] = 9/11
-        prev_states[(x+1, y, 'stay')] = 2/11
-    elif action == 'up':
-        prev_states[(x, y+1, 'up')] = 9/11
-        prev_states[(x, y+1, 'stay')] = 2/11
-    elif action == 'down':
-        prev_states[(x, y-1, 'down')] = 9/11
-        prev_states[(x, y-1, 'stay')] = 2/11
-    else: # action = 'stay'
-        prev_states[(x, y, 'stay')] = .2
-        prev_states[(x, y, 'right')] = .2
-        prev_states[(x, y, 'left')] = .2
-        prev_states[(x, y, 'up')] = .2
-        prev_states[(x, y, 'down')] = .2
-        
-
+    
+    for s in all_possible_hidden_states:
+        candidates = transition_model(s)
+        if state in candidates:
+            if state in prev_states:
+                prev_states[s] += candidates[state]
+            else:
+                prev_states[s] = candidates[state]
+    prev_states.renormalize()
+    
     return prev_states
-
+    
 def compute_phi(observations):
     """
     Compute phi = P(observations[i]|state) for each hidden state
@@ -160,12 +148,12 @@ def compute_backwards(phis):
         for state in phis[i+1]:
             prob = backwards[i+1][state]*phis[i+1][state]
             if prob != 0:
-                prev_states = transition_from_model(state)
+                prev_states = pretransition(state)
                 for prev_state in prev_states:
                     if prev_state in backwards[i]:
-                        backwards[i][prev_state] += (prob * prev_states[prev_state])
+                        backwards[i][prev_state] += (prob * transition_model(prev_state)[state])
                     else:
-                        backwards[i][prev_state] = (prob * prev_states[prev_state])
+                        backwards[i][prev_state] = (prob * transition_model(prev_state)[state])
         backwards[i].renormalize()
         
     return backwards
