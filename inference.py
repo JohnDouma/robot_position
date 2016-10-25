@@ -41,6 +41,12 @@ def final_distribution():
         for y in range(robot.GRID_HEIGHT):
             final[(x, y, 'stay')] = 1
     return final
+    
+def final_distribution2():
+    final = robot.Distribution()
+    for state in robot.get_all_hidden_states():
+        final[state] = 1
+    return final
         
         
 def transition_from_model(state):
@@ -49,17 +55,17 @@ def transition_from_model(state):
     prev_states = robot.Distribution()
 
     if action == 'right':
-        prev_states[(x-1, y, 'right')] = .9
-        prev_states[(x-1, y, 'stay')] = .1
+        prev_states[(x-1, y, 'right')] = 9/11
+        prev_states[(x-1, y, 'stay')] = 2/11
     elif action == 'left':
-        prev_states[(x+1, y, 'left')] = .9
-        prev_states[(x+1, y, 'stay')] = .1
+        prev_states[(x+1, y, 'left')] = 9/11
+        prev_states[(x+1, y, 'stay')] = 2/11
     elif action == 'up':
-        prev_states[(x, y+1, 'up')] = .9
-        prev_states[(x, y+1, 'stay')] = .1
+        prev_states[(x, y+1, 'up')] = 9/11
+        prev_states[(x, y+1, 'stay')] = 2/11
     elif action == 'down':
-        prev_states[(x, y-1, 'down')] = .9
-        prev_states[(x, y-1, 'stay')] = .1
+        prev_states[(x, y-1, 'down')] = 9/11
+        prev_states[(x, y-1, 'stay')] = 2/11
     else: # action = 'stay'
         prev_states[(x, y, 'stay')] = .2
         prev_states[(x, y, 'right')] = .2
@@ -68,7 +74,6 @@ def transition_from_model(state):
         prev_states[(x, y, 'down')] = .2
         
 
-    prev_states.renormalize()
     return prev_states
 
 def compute_phi(observations):
@@ -90,7 +95,7 @@ def compute_phi(observations):
         observation = observations[i]
         for state in all_possible_hidden_states:
             possible_locations = observation_model(state)
-            if observation in possible_locations.keys():
+            if observation in possible_locations:
                 phi[i][state] = possible_locations[observation]
                 
     return phi
