@@ -188,6 +188,19 @@ def forward_backward(observations):
             marginals[i].renormalize()
 
     return marginals
+    
+    
+def probX2givenX1(x1, x2):
+    """
+    Compute P(x2|x1)
+    Inputs:
+      x1, x2 - states, each of the form (x,y,<action>)
+      
+    Output:
+      Probability that x2 occurs given that x1 occurs
+    """
+    
+    return transition_model(x1)[x2]
 
 
 def Viterbi(observations):
@@ -208,11 +221,38 @@ def Viterbi(observations):
     #
 
 
-    num_time_steps = len(observations)
-    estimated_hidden_states = [None] * num_time_steps # remove this
+    phis = compute_phi(observations)
+    num_phis = len(phis)
+    estimated_hidden_states = [None] * num_phis # remove this
+    messages = [None] * (num_phis - 1)
+    tracebacks = [None] * (num_phis - 1)
+    for i in range(num_phis-1):
+        messages[i] = robot.Distribution()
+        tracebacks[i] = robot.Distribution()
+        for x2 in all_possible_hidden_states:
+            minvalue = np.inf
+            minarg = None
+            for x1 in phis[i]:
+                val = -careful_log(phis[i][x1]) -careful_log(transition_model(x1)[x2])
+                if i > 0:
+                    val += messages[i-1][x1] 
+                if val < minvalue:
+                    minvalue = val
+                    minarg = x1
+            messages[i][x2] = minvalue
+            tracebacks[i][x2] = minarg
+            
+    minvalue = np.inf
+    for state in all_possible_hidden_states:
+        if messages[num_phis-2][state] - careful_log(phis[num_phis-1][state]) < minvalue:
+            minarg = state
+            
+    estimated_hidden_states[num_phis-1] = minarg        
+    for i in range(num_phis-2, -1, -1):
+        estimated_hidden_states[i] = tracebacks[i][estimated_hidden_states[i+1]]
 
     return estimated_hidden_states
-
+    
 
 def second_best(observations):
     """
