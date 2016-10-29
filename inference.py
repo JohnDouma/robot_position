@@ -234,7 +234,9 @@ def Viterbi(observations):
             minarg = None
             for x1 in phis[i]:
                 val = -careful_log(phis[i][x1]) -careful_log(transition_model(x1)[x2])
-                if i > 0:
+                if i == 0:
+                    val -= careful_log(prior_distribution[x1])
+                else:
                     val += messages[i-1][x1] 
                 if val < minvalue:
                     minvalue = val
