@@ -229,7 +229,7 @@ def Viterbi(observations):
     for i in range(num_phis-1):
         messages[i] = robot.Distribution()
         tracebacks[i] = robot.Distribution()
-        for x2 in all_possible_hidden_states:
+        for x2 in phis[i+1]:
             minvalue = np.inf
             minarg = None
             for x1 in phis[i]:
@@ -255,6 +255,31 @@ def Viterbi(observations):
 
     return estimated_hidden_states
     
+    
+def log_prob_hidden(estimates, observations):
+    """
+    Calculate log(P(estimates|observations))
+    Inputs:
+        estimates - guess at hidden states
+        observations - observed states
+        
+    Requires:
+        len(estimates) == len(observations)
+        
+    Output:
+        natural log of P(estimates|observations)
+    """
+    
+    num_observations = len(observations)
+    prob = 0
+    for i in range(num_observations):
+        prob -= careful_log(observation_model(estimates[i])[observations[i]])
+        if i == 0:
+            prob -= careful_log(prior_distribution[estimates[i]])
+        else:
+            prob -= careful_log(transition_model(estimates[i-1])[estimates[i]])
+            
+    return prob
 
 def second_best(observations):
     """
@@ -272,11 +297,67 @@ def second_best(observations):
     # -------------------------------------------------------------------------
     # YOUR CODE GOES HERE
     #
-
-
-    num_time_steps = len(observations)
-    estimated_hidden_states = [None] * num_time_steps # remove this
-
+    phis = compute_phi(observations)
+    num_phis = len(phis)
+    estimated_hidden_states = [None] * num_phis # remove this
+    messages = [None] * (num_phis - 1)
+    tracebacks = [None] * (num_phis - 1)
+    second_best = [None] * (num_phis - 1)
+    second_tracebacks = [None] * (num_phis - 1)
+    for i in range(num_phis-1):
+        messages[i] = robot.Distribution()
+        second_best[i] = robot.Distribution()
+        tracebacks[i] = robot.Distribution()
+        second_tracebacks[i] = robot.Distribution()
+        #for x2 in all_possible_hidden_states:
+        for x2 in phis[i+1]:
+            minvalue = np.inf
+            nextvalue = np.inf
+            minarg = None
+            nextarg = None
+            for x1 in phis[i]:
+                val = -careful_log(phis[i][x1]) -careful_log(transition_model(x1)[x2])
+                if i == 0:
+                    val -= careful_log(prior_distribution[x1])
+                else:
+                    val += messages[i-1][x1] 
+                if val < minvalue:
+                    nextvalue = minvalue
+                    nextarg = minarg
+                    minvalue = val
+                    minarg = x1
+                elif val < nextvalue:
+                    nextvalue = val
+                    nextarg = x1
+                
+            messages[i][x2] = minvalue
+            tracebacks[i][x2] = minarg
+            second_best[i][x2] = nextvalue
+            second_tracebacks[i][x2] = nextarg
+            
+    minvalue = np.inf
+    nextvalue = np.inf
+    minarg = None
+    nextarg = None
+    for state in all_possible_hidden_states:
+        val = messages[num_phis-2][state] - careful_log(phis[num_phis-1][state])
+        if val < minvalue:
+            nextvalue = minvalue
+            nextarg = minarg
+            minvalue = val
+            minarg = state
+        elif val < nextvalue:
+            nextvalue = val
+            nextarg = state
+            
+    #estimated_hidden_states[num_phis-1] = nextarg
+    estimated_hidden_states[num_phis-1] = minarg
+    for i in range(num_phis-2, -1, -1):
+        estimated_hidden_states[i] = tracebacks[i][estimated_hidden_states[i+1]]
+        
+    print(log_prob_hidden(estimated_hidden_states, observations))
+    print(messages)
+        
     return estimated_hidden_states
 
 
