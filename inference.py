@@ -299,67 +299,26 @@ def second_best(observations):
     #
     phis = compute_phi(observations)
     num_phis = len(phis)
-    estimated_hidden_states = [None] * num_phis # remove this
-    messages = [None] * (num_phis - 1)
-    tracebacks = [None] * (num_phis - 1)
-    second_best = [None] * (num_phis - 1)
-    second_tracebacks = [None] * (num_phis - 1)
-    for i in range(num_phis-1):
-        messages[i] = robot.Distribution()
-        second_best[i] = robot.Distribution()
-        tracebacks[i] = robot.Distribution()
-        second_tracebacks[i] = robot.Distribution()
-        #for x2 in all_possible_hidden_states:
-        for x2 in phis[i+1]:
-            minvalue = np.inf
-            nextvalue = np.inf
-            minarg = None
-            nextarg = None
-            for x1 in phis[i]:
-                val = -careful_log(phis[i][x1]) -careful_log(transition_model(x1)[x2])
-                if i == 0:
-                    val -= careful_log(prior_distribution[x1])
-                else:
-                    val += messages[i-1][x1] 
-                if val < minvalue:
-                    nextvalue = minvalue
-                    nextarg = minarg
-                    minvalue = val
-                    minarg = x1
-                elif val < nextvalue:
-                    nextvalue = val
-                    nextarg = x1
-                
-            messages[i][x2] = minvalue
-            tracebacks[i][x2] = minarg
-            second_best[i][x2] = nextvalue
-            second_tracebacks[i][x2] = nextarg
-            
-    minvalue = np.inf
-    nextvalue = np.inf
-    minarg = None
-    nextarg = None
-    for state in all_possible_hidden_states:
-        val = messages[num_phis-2][state] - careful_log(phis[num_phis-1][state])
-        if val < minvalue:
-            nextvalue = minvalue
-            nextarg = minarg
-            minvalue = val
-            minarg = state
-        elif val < nextvalue:
-            nextvalue = val
-            nextarg = state
-            
-    #estimated_hidden_states[num_phis-1] = nextarg
-    estimated_hidden_states[num_phis-1] = minarg
-    for i in range(num_phis-2, -1, -1):
-        estimated_hidden_states[i] = tracebacks[i][estimated_hidden_states[i+1]]
         
-    print(log_prob_hidden(estimated_hidden_states, observations))
-    print(messages)
+    paths = []
+    
+    for state in phis[0]:
+        prob = -careful_log(prior_distribution[state]) - careful_log(phis[0][state])
+        if prob != np.inf:
+            paths.append((prob, [state]))
+            
+    for i in range(1, num_phis):
+        new_paths = []
+        for path in paths:
+            end_of_path = path[1][-1]
+            for state in phis[i]:
+                prob = -careful_log(phis[i][state]) - careful_log(transition_model(end_of_path)[state])
+                if prob != np.inf:
+                    new_paths.append((prob + path[0], path[1] + [state]))
+                    
+        paths = new_paths
         
-    return estimated_hidden_states
-
+    return sorted(paths)[1][1]
 
 # -----------------------------------------------------------------------------
 # Generating data from the hidden Markov model
